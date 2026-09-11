@@ -1,0 +1,15 @@
+import {build} from 'esbuild';
+import assert from 'node:assert/strict';
+import {mkdirSync} from 'node:fs';
+import {signIdentity,token} from '../server/security.mjs';
+mkdirSync('.sites-runtime/tests',{recursive:true});
+await build({entryPoints:['app/chatgpt-auth.ts'],bundle:true,platform:'node',format:'esm',outfile:'.sites-runtime/tests/identity.mjs',plugins:[{name:'identity-test',setup(b){b.onResolve({filter:/^(next\/headers|next\/navigation|cloudflare:workers)$/},a=>({path:a.path,namespace:'mock'}));b.onLoad({filter:/.*/,namespace:'mock'},a=>({contents:a.path==='next/headers'?'export const headers=async()=>globalThis.testHeaders':a.path==='next/navigation'?'export const redirect=()=>{}':'export const env=globalThis.testEnv',loader:'js'}));}}]});
+const secret=token();globalThis.testEnv={AUTH_GATEWAY_SECRET:secret};globalThis.testHeaders=new Headers();
+const {getChatGPTUser}=await import('../.sites-runtime/tests/identity.mjs');
+assert.equal(await getChatGPTUser(),null);
+const time=String(Date.now());testHeaders.set('oai-authenticated-user-id','user');testHeaders.set('oai-authenticated-user-email','user@example.com');
+assert.equal(await getChatGPTUser(),null);
+testHeaders.set('x-sol-identity-time',time);testHeaders.set('x-sol-identity-signature',signIdentity(secret,'user','user@example.com',time));assert.equal((await getChatGPTUser()).userId,'user');
+testHeaders.set('oai-authenticated-user-email','forged@example.com');assert.equal(await getChatGPTUser(),null);
+const expired=String(Date.now()-60000);testHeaders.set('x-sol-identity-time',expired);testHeaders.set('x-sol-identity-signature',signIdentity(secret,'user','forged@example.com',expired));assert.equal(await getChatGPTUser(),null);
+console.log('Identidade: assinatura obrigatória, adulteração e expiração verificadas.');

@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { env } from 'cloudflare:workers';
 import { redirect } from "next/navigation";
 
 export type ChatGPTUser = {
@@ -14,8 +15,8 @@ const USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
 const USER_FULL_NAME_ENCODING_HEADER =
   "oai-authenticated-user-full-name-encoding";
 const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
-const SIGN_IN_PATH = "/signin-with-chatgpt";
-const SIGN_OUT_PATH = "/signout-with-chatgpt";
+const SIGN_IN_PATH = "/auth/login";
+const SIGN_OUT_PATH = "/auth/logout";
 const CALLBACK_PATH = "/callback";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
@@ -23,6 +24,12 @@ export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);
   if (!userId || !email) return null;
+  const secret = (env as unknown as Record<string, string>).AUTH_GATEWAY_SECRET;
+  const time = requestHeaders.get('x-sol-identity-time') || '';
+  const signature = requestHeaders.get('x-sol-identity-signature') || '';
+  if (!secret || !/^\d{13}$/.test(time) || Math.abs(Date.now()-Number(time)) > 30000 || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['verify']);
+  if (!await crypto.subtle.verify('HMAC', key, Uint8Array.from(signature.match(/../g)!, h=>parseInt(h,16)), new TextEncoder().encode(`${time}\n${userId}\n${email}`))) return null;
 
   const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
   const fullName =

@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
+import {Accounts,hashPassword,verifyPassword,digest} from '../server/security.mjs';
+const db=new DatabaseSync(':memory:'),accounts=new Accounts(db);
+const password='Fixture-only-password-2026',hash=await hashPassword(password);
+assert(await verifyPassword(password,hash));assert(!await verifyPassword('invalid',hash));
+assert.notEqual(hash,await hashPassword(password));
+await assert.rejects(()=>hashPassword('short'));
+db.prepare('INSERT INTO users VALUES(?,?,?)').run('a','test@example.com',hash);
+const session=accounts.createSession('a');assert.equal(accounts.session(session).id,'a');
+assert.equal(db.prepare('SELECT hash FROM sessions').get().hash,digest(session));
+accounts.logout(session);assert.equal(accounts.session(session),null);
+const expired=accounts.createSession('a');db.prepare('UPDATE sessions SET idle=0').run();assert.equal(accounts.session(expired),null);
+const absolute=accounts.createSession('a');db.prepare('UPDATE sessions SET expires=0').run();assert.equal(accounts.session(absolute),null);
+for(let i=0;i<8;i++)assert(accounts.throttle('test'));assert(!accounts.throttle('test'));
+db.close();console.log('Auth: hashes, sessões, expiração e limite de tentativas OK.');

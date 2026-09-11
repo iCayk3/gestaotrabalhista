@@ -1,5 +1,7 @@
 # SOL — Gestão trabalhista
 
+Para autenticação própria, HTTPS e instalação no Portainer, siga [DEPLOYMENT.md](DEPLOYMENT.md). Essa configuração substitui as instruções antigas da plataforma.
+
 ## Fluxo principal atualizado
 
 A operação agora acontece em três telas dentro de Gestão da folha:
@@ -22,12 +24,12 @@ Aplicativo web de conferência assistida baseado no modelo SOL fornecido. O dire
 
 ## Uso
 
-1. Entre com ChatGPT e crie sua empresa.
+1. Entre com seu e-mail e senha e crie sua empresa.
 2. Em Empresa e acesso, confira município, UF e convenção coletiva aplicável.
 3. Importe o arquivo XLSX no formato SOL. A prévia informa meses importados e meses de salário zero ignorados. O importador atual suporta um colaborador na aba Planilha1, conforme o arquivo de referência. Importe outros arquivos ou crie lançamentos manualmente.
 4. Revise as competências: incidências, base de INSS, IRRF apurado, calendário, descontos e valor comprovadamente pago.
 5. Salve com justificativa. Consulte as versões anteriores em Histórico. Exportar conferência gera um CSV com os filtros atuais e identificação de pendências.
-6. Gere convite para o e-mail da conta ChatGPT do contador. Ele deverá ter acesso ao site na plataforma e aceitar o código dentro do aplicativo. Nenhum convite é enviado por e-mail automaticamente.
+6. Gere convite para o e-mail do contador. Ele poderá criar a conta em `/auth/register`; se já tiver conta, poderá aceitar o código dentro do aplicativo. Nenhum convite é enviado por e-mail automaticamente.
 
 ## Escopo contábil desta versão
 
@@ -44,11 +46,11 @@ Aplicativo web de conferência assistida baseado no modelo SOL fornecido. O dire
 
 ## Segurança e dados
 
-Autenticação fornecida pelo Sites/ChatGPT. Autorização por associação entre usuário e empresa, verificada no servidor. Administrador gerencia regras e acessos; contador revisa lançamentos. SQL parametrizado, bloqueio de requisições de origem externa, limites e validação no servidor. Convites são vinculados ao e-mail autenticado, expiram em 7 dias e têm somente seu hash salvo. Remoção de acesso invalida convites da empresa.
+Autenticação própria por e-mail e senha no gateway Node. Autorização por associação entre usuário e empresa, verificada no servidor. Administrador gerencia regras e acessos; contador revisa lançamentos. SQL parametrizado, bloqueio de requisições de origem externa, limites e validação no servidor. Convites são vinculados ao e-mail autenticado, expiram em 7 dias e têm somente seu hash salvo. Remoção de acesso invalida convites da empresa.
 
 Dados persistidos em D1; o navegador não é fonte de armazenamento da folha. Arquivos XLSX são lidos localmente no navegador, sem executar macros ou fórmulas. Após confirmação, somente os dados estruturados são enviados à empresa online. O arquivo completo não é armazenado. Histórico preserva o estado e a memória de cálculo de cada salvamento, sem rota de alteração ou exclusão do histórico. Edições usam controle de versão para detectar conflito.
 
-A plataforma protege o acesso ao site separadamente do vínculo com a empresa. A publicação inicial é privada do proprietário. Para usar com o contador, autorize o acesso dele na plataforma e gere o convite individual no aplicativo. Não publique dados pessoais no código nem em exemplos. A cópia local é exclusivamente para desenvolvimento; a simulação de login é removida na compilação de produção.
+Use o gateway com HTTPS conforme DEPLOYMENT.md. O Worker rejeita cabeçalhos de identidade sem assinatura interna. O login simulado foi desativado também no desenvolvimento. Não publique dados pessoais no código nem em exemplos.
 
 Esta primeira versão não constitui certificação LGPD nem auditoria de segurança independente. Antes de operação ampla, definir retenção/exclusão, recuperação de backups e teste de restauração, contratos de tratamento, suporte a desligamentos, monitoramento e revisão independente. Exportações CSV contêm dados pessoais; guarde-as com as mesmas restrições de acesso. A exportação não substitui backup integral do banco.
 
@@ -64,7 +66,7 @@ Node 24 ou superior. Instale com `npm run install:ci`, rode `npm run dev`. `npm 
 
 ### Portainer / Docker Compose
 
-Na pasta `site`, envie o projeto ao servidor do Portainer e crie uma Stack usando `docker-compose.yml`. A porta padrão é `8787`; altere o mapeamento para a porta desejada. O volume `calculos_trabalhistas_data` mantém o D1 local entre reinícios e atualizações do container. Execute `docker compose build` e depois `docker compose up -d`. O primeiro login deve ser feito pela autenticação da plataforma; não coloque tokens ou dados reais no arquivo Compose.
+Siga DEPLOYMENT.md para criar a imagem, configurar domínio e senha por arquivo secreto e subir a stack. Somente Caddy publica portas 80/443. O volume mantém os bancos entre reinícios. Não exponha a porta interna 8787, o Vite ou o Wrangler na internet.
 
 - `node tests/engine.mjs`: limites das faixas de INSS, anuênio histórico, descontos, DSR, férias, 13º e validação.
 - `node tests/api-direct.mjs`: usa o código real das rotas com autenticação simulada apenas no processo de teste e SQLite em memória. Testa isolamento, persistência, convites, revogação, controle de versão e CSRF. Não modifica a autenticação do aplicativo.

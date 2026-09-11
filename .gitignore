@@ -4,3 +4,10 @@ private/
 *.xlsx
 node_modules/
 __pycache__/
+.env*
+secrets/
+*.sqlite*
+*.db
+*.pem
+restore-points/
+work-*.json

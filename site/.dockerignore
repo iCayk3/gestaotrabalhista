@@ -5,3 +5,12 @@ dist
 .git
 *.log
 restore-points
+.env*
+.dev.vars*
+secrets
+*.sqlite*
+*.db
+*.pem
+outputs
+work
+work-*.json

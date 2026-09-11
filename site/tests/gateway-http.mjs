@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,writeFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {once} from 'node:events';
+import http from 'node:http';
+const directory=mkdtempSync(join(tmpdir(),'sol-auth-test-')),file=join(directory,'password');
+const password='Fixture-only-strong-password',origin=process.env.TEST_HTTPS==='1'?'https://test.example.com':'http://127.0.0.1:18787';writeFileSync(file,password);
+let logs='';
+const start=()=>{const p=spawn(process.execPath,['server/start.mjs'],{env:{...process.env,APP_ORIGIN:origin,ALLOW_LOCAL_HTTP:'1',PORT:'18787',DATA_DIR:directory,ADMIN_EMAIL:'admin@example.com',ADMIN_PASSWORD_FILE:file},stdio:['ignore','pipe','pipe']});p.stdout.on('data',d=>logs+=d);p.stderr.on('data',d=>logs+=d);return p;};
+let child=start();
+const stop=async()=>{const done=once(child,'exit');child.kill();await done;};
+const request=(path,options={})=>new Promise((resolve,reject)=>{const req=http.request('http://127.0.0.1:18787'+path,{method:options.method||'GET',headers:{Host:new URL(origin).host,...options.headers}},res=>{const chunks=[];res.on('data',d=>chunks.push(d));res.on('end',()=>{const headers=new Headers();for(const [k,v] of Object.entries(res.headers))if(v)headers.set(k,Array.isArray(v)?v.join(','):v);resolve(new Response(Buffer.concat(chunks),{status:res.statusCode,headers}));});});req.on('error',reject);req.end(options.body?.toString());});
+const form=(path,data,cookie='')=>request(path,{method:'POST',headers:{Origin:origin,'Content-Type':'application/x-www-form-urlencoded',Cookie:cookie},body:new URLSearchParams(data)});
+const api=(data,cookie)=>request('/api/workspace',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-SOL-Request':'1',Cookie:cookie},body:JSON.stringify(data)});
+try{
+ let ready=false;for(let i=0;i<100;i++){try{if((await request('/healthz')).ok){ready=true;break;}}catch{}if(child.exitCode!==null)break;await new Promise(r=>setTimeout(r,300));}assert(ready,logs);
+ assert.equal((await request('/')).status,303);
+ assert.equal((await request('/api/workspace',{headers:{'oai-authenticated-user-id':'admin','oai-authenticated-user-email':'admin@example.com'}})).status,401);
+ assert.equal((await request('/auth/login',{method:'POST',body:''})).status,403);
+ assert.equal((await form('/auth/login',{email:'admin@example.com',password:'bad'})).status,401);
+ const login=await form('/auth/login',{email:'admin@example.com',password});assert.equal(login.status,303);const cookie=login.headers.get('set-cookie').split(';')[0];assert.match(login.headers.get('set-cookie'),/HttpOnly; SameSite=Lax/);
+ if(process.env.TEST_HTTPS==='1'){assert.match(login.headers.get('set-cookie'),/^__Host-sol_session=/);assert.match(login.headers.get('set-cookie'),/; Secure/);assert(login.headers.get('strict-transport-security'));}
+ const page=await request('/',{headers:{Cookie:cookie}});assert.equal(page.status,200);assert.match(page.headers.get('cache-control'),/no-store/);const html=await page.text();assert.match(html,/Gestão trabalhista/);
+ const asset=html.match(/(?:src|href)="([^" ]+\.(?:js|css))"/);assert(asset);assert.equal((await request(asset[1],{headers:{Cookie:cookie}})).status,200);
+ const created=await api({action:'create',name:'Empresa teste segurança'},cookie);assert.equal(created.status,200,await created.clone().text());const {id}=await created.json();
+ const invite=await api({action:'invite',company:id,email:'contador@example.com'},cookie);const {token}=await invite.json();assert(token);
+ assert.equal((await form('/auth/register',{email:'outro@example.com',password,invite:token})).status,400);
+ const register=await form('/auth/register',{email:'contador@example.com',password,invite:token});assert.equal(register.status,303);const counterCookie=register.headers.get('set-cookie').split(';')[0];
+ assert.equal((await request('/api/workspace?company='+id,{headers:{Cookie:counterCookie}})).status,200);
+ assert.equal((await api({action:'invite',company:id,email:'third@example.com'},counterCookie)).status,403);
+ const other=await(await api({action:'create',name:'Empresa privada'},cookie)).json();assert.equal((await request('/api/workspace?company='+other.id,{headers:{Cookie:counterCookie}})).status,403);
+ const memberData=await(await request('/api/workspace?company='+id,{headers:{Cookie:cookie}})).json();const counter=memberData.members.find(m=>m.role==='contador');
+ assert.equal((await api({action:'revoke',company:id,user:counter.user},cookie)).status,200);
+ assert.equal((await request('/api/workspace?company='+id,{headers:{Cookie:counterCookie}})).status,403);
+ assert.equal((await form('/auth/password',{current:password,password:password+'-new'},cookie)).status,303);
+ assert.equal((await request('/api/workspace',{headers:{Cookie:cookie}})).status,401);
+ const fresh=await form('/auth/login',{email:'admin@example.com',password:password+'-new'});assert.equal(fresh.status,303);const freshCookie=fresh.headers.get('set-cookie').split(';')[0];
+ assert.equal((await form('/auth/logout',{},freshCookie)).status,303);assert.equal((await request('/api/workspace',{headers:{Cookie:freshCookie}})).status,401);
+ await stop();child=start();let restarted=false;for(let i=0;i<100;i++){try{if((await request('/healthz')).ok){restarted=true;break;}}catch{}await new Promise(r=>setTimeout(r,300));}assert(restarted,logs);
+ const relogin=await form('/auth/login',{email:'admin@example.com',password:password+'-new'});assert.equal(relogin.status,303);const persisted=await(await request('/api/workspace',{headers:{Cookie:relogin.headers.get('set-cookie').split(';')[0]}})).json();assert.equal(persisted.companies.length,2);
+ console.log('HTTP: login, CSRF, cabeçalhos falsos, convite, isolamento, permissões, revogação, senha, logout, arquivos e persistência após reinício OK.');
+}finally{if(child.exitCode===null)await stop();console.log('Dados fictícios de teste: '+directory);}
