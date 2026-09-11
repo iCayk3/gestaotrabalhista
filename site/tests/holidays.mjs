@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {holidayDates,holidaysFor} from '../lib/payroll/holidays.ts';
+import {calendar} from '../lib/payroll/management.ts';
+import {initialState} from '../lib/payroll/engine.ts';
+import {stateSchema} from '../lib/payroll/validation.ts';
+const s=initialState();assert.equal(holidayDates(s,'2026-08'),'2026-08-15');assert.equal(holidayDates({...s,uf:'SP'},'2026-08'),'');
+assert.deepEqual(calendar('2026-11',holidayDates(s,'2026-11')),{workDays:23,restDays:7});
+const h={id:'local',date:'2026-08-15',name:'Local',scope:'municipal',uf:'PA',city:s.city,enabled:true,source:'Lei local'};
+assert.equal(holidayDates({...s,holidays:[h]},'2026-08'),'2026-08-15');
+const fixed=holidaysFor(s,'2026').find(h=>h.date==='2026-08-15');assert.equal(holidayDates({...s,holidays:[{...fixed,enabled:false}]},'2026-08'),'');
+assert.equal(stateSchema.safeParse({...s,holidays:[h]}).success,true);assert.equal(stateSchema.safeParse({...s,holidays:[{...h,date:'2026-02-30'}]}).success,false);
+console.log('Feriados: localidade, desativação, datas inválidas e deduplicação de domingos/feriados verificados.');

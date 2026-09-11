@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {simulatePayroll} from '../lib/payroll/simulation.ts';
+import {initialState} from '../lib/payroll/engine.ts';
+import {stateSchema} from '../lib/payroll/validation.ts';
+const source=initialState(),before=JSON.stringify(source),demo=simulatePayroll(source);
+assert.equal(JSON.stringify(source),before);assert.equal(demo.entries.length,120);assert.ok(stateSchema.safeParse(demo).success);
+const first=demo.employees[0],records=demo.entries.filter(e=>e.employeeId===first.id);
+assert.equal(records.find(e=>e.month==='2026-06').salary,1800);assert.equal(records.find(e=>e.month==='2026-07').salary,3000);
+assert.equal(records.at(-1).month,'2026-10');assert.ok(demo.entries.some(e=>e.monthly.hours50===0));assert.ok(demo.entries.some(e=>e.bonus>0));
+console.log('Simulação: 10 meses por colaborador, alterações salariais e fonte preservada verificados.');

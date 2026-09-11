@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {employeeAnnual} from '../lib/payroll/annual-employee.ts';
+import {blankEmployee} from '../lib/payroll/management.ts';
+import {initialState} from '../lib/payroll/engine.ts';
+const p=blankEmployee();Object.assign(p,{admission:'2020-01-01',name:'Teste',job:'Técnico',registration:'1'});p.contracts=[{...p.contracts[0],effective:'2020-01',salary:1800},{...p.contracts[0],effective:'2026-07',salary:3000}];
+const r=employeeAnnual(initialState(),p,'13','2026-12-31','',null);assert.equal(r.fixed,3180);assert.equal(r.avos,12);assert.equal(r.missing.length,12);
+assert.equal(employeeAnnual(initialState(),{...p,admission:'2026-01-17'},'13','2026-12-31','',null).avos,12);
+assert.equal(employeeAnnual(initialState(),{...p,admission:'2026-01-18'},'13','2026-12-31','',null).avos,11);
+assert.equal(employeeAnnual(initialState(),p,'vacation','2026-01-01','2025-01-01',null).result,null);
+for(const [absences,days] of [[0,30],[6,24],[15,18],[24,12],[33,0]])assert.equal(employeeAnnual(initialState(),p,'vacation','2026-01-01','2025-01-01',absences).days,days);
+assert.throws(()=>employeeAnnual(initialState(),p,'vacation','2026-06-01','2026-01-01',0));
+console.log('Férias/13º: salário vigente, avos de 15 dias, faltas, período incompleto e histórico ausente verificados.');

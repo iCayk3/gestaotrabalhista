@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+const origin='http://localhost:5173',url=origin+'/api/workspace';
+async function request(user,path='',body,expected=200){const headers={'oai-authenticated-user-id':user,'oai-authenticated-user-email':user+'@example.test'};if(body)Object.assign(headers,{'Content-Type':'application/json','X-SOL-Request':'1',Origin:origin});const r=await fetch(url+path,{headers,method:body?'POST':'GET',body:body?JSON.stringify(body):undefined});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));return d;}
+const suffix=Date.now(),a='test-admin-'+suffix,b='test-accountant-'+suffix,c='test-outsider-'+suffix;
+const created=await request(a,'',{action:'create',name:'Empresa de teste de segurança'}),id=created.id;
+assert.equal((await request(c)).companies.length,0);
+await request(c,'?company='+id,undefined,403);
+const current=await request(a,'?company='+id);
+const next={...current.state,convention:'Regra de teste'};
+await request(a,'',{action:'save',company:id,version:0,state:next,reason:'Teste de persistência'});
+await request(a,'',{action:'save',company:id,version:0,state:next,reason:'Versão obsoleta'},409);
+assert.equal((await request(a,'?company='+id+'&history=1')).history.length,2);
+const invite=await request(a,'',{action:'invite',company:id,email:b+'@example.test'});
+await request(c,'',{action:'accept',token:invite.token},400);
+await request(b,'',{action:'accept',token:invite.token});
+assert.equal((await request(b,'?company='+id)).role,'contador');
+await request(b,'',{action:'save',company:id,version:1,state:{...next,company:'Alteração indevida'},reason:'Não permitido'},403);
+await request(b,'',{action:'invite',company:id,email:c+'@example.test'},403);
+await request(a,'',{action:'revoke',company:id,user:b});
+await request(b,'?company='+id,undefined,403);
+await request(b,'',{action:'accept',token:invite.token},400);
+const denied=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','oai-authenticated-user-id':a,'oai-authenticated-user-email':a+'@example.test',Origin:'https://invalid.example'},body:JSON.stringify({action:'create'})});assert.equal(denied.status,403);
+const anon=await fetch(url);assert.equal(anon.status,401);
+const employee={id:crypto.randomUUID(),name:'Cadastro persistente teste',registration:'001',admission:'2024-01-01',job:'Técnico',department:'Operação',termination:'',contracts:[{effective:'2024-01',salary:2200,divisor:220,danger:true,unhealthyRate:0,unhealthyBase:0,annuityRate:0,nightRate:20,fixedName:'',fixedValue:0,notes:''}]};
+await request(a,'',{action:'save',company:id,version:1,state:{...next,employees:[employee]},reason:'Cadastro persistente do colaborador'});
+const saved=await request(a,'?company='+id);assert.equal(saved.state.employees[0].id,employee.id);assert.equal(saved.state.employees[0].contracts[0].salary,2200);
+assert.equal((await request(a,'?company='+id+'&history=1')).history.length,3);
+console.log('API: persistência, histórico, concorrência, isolamento, convite por destinatário, permissões, revogação, CSRF e anonimato verificados. Dados somente no banco local de testes.');
