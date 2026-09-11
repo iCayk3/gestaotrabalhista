@@ -1,0 +1,2 @@
+Ponto anterior à integração VR Gente. Contém dados pessoais: mantenha local.
+Para restaurar: pare o servidor; preserve a pasta atual; extraia source.zip em uma pasta limpa; copie o conteúdo de data para a pasta restaurada preservando os caminhos; instale as dependências pelo package-lock.json e reinicie o servidor. Não sobreponha um banco em execução.

@@ -1,0 +1,11 @@
+{
+  "created": "2026-09-11T15:30:18.421638",
+  "project": "C:\\Users\\SOL NOC\\Documents\\Dev\\Projetos\\Calculos trabalhistas\\site",
+  "files": 131,
+  "databases": [
+    ".wrangler/state/v3/cache/miniflare-CacheObject/metadata.sqlite",
+    ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/faaf2b0445ab934c3aac48ddf0cdfade8f9bac050be98993748742cdd2cb05fb.sqlite",
+    ".wrangler/state/v3/d1/miniflare-D1DatabaseObject/metadata.sqlite"
+  ],
+  "source_sha256": "4b3fe20826e520518cf52e48595ec9ada2f3861a873a5489414776c8acd0f357"
+}

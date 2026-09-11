@@ -1,0 +1,6 @@
+.sites-runtime/
+private/
+*.solbackup
+*.xlsx
+node_modules/
+__pycache__/
